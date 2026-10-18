@@ -13,6 +13,11 @@ function makeFake() {
   const hoverProviders = [];
   const formatProviders = [];
   const rangeFormatProviders = [];
+  const definitionProviders = [];
+  const linkProviders = [];
+  const symbolProviders = [];
+  const files = {}; // 가짜 파일시스템: path -> text
+  const Uri = (p) => ({ path: p, fsPath: p, toString: () => 'file://' + p });
   const collection = { last: null, set(uri, d) { this.last = d; }, delete() {}, dispose() {} };
   class Position { constructor(l, c) { this.line = l; this.character = c; } }
   class Range { constructor(a, b) { this.start = a; this.end = b; } }
@@ -21,12 +26,15 @@ function makeFake() {
   class CompletionItem { constructor(label, kind) { this.label = label; this.kind = kind; } }
   class CompletionList { constructor(items, incomplete) { this.items = items; this.isIncomplete = incomplete; } }
   class TextEdit { static replace(range, newText) { return { range, newText }; } }
+  class Location { constructor(uri, range) { this.uri = uri; this.range = range; } }
+  class DocumentLink { constructor(range, target) { this.range = range; this.target = target; } }
+  class DocumentSymbol { constructor(name, detail, kind, range, selectionRange) { Object.assign(this, { name, detail, kind, range, selectionRange, children: [] }); } }
   class Hover { constructor(contents, range) { this.contents = contents; this.range = range; } }
   class SnippetString { constructor(value) { this.value = value; } }
   class MarkdownString { constructor(value) { this.value = value; } }
   class WorkspaceEdit { constructor() { this.edits = []; } replace(uri, range, text) { this.edits.push({ uri, range, text }); } }
   const sub = (name) => (fn) => { handlers[name] = fn; return { dispose() {} }; };
-  const doc = { languageId: 'nginx', uri: { toString: () => 'file:///t.nginx.conf' }, text: '' };
+  const doc = { languageId: 'nginx', uri: Uri('/t.nginx.conf'), text: '' };
   const offsetAt = (p) => {
     const lines = doc.text.split('\n');
     return lines.slice(0, p.line).reduce((n, l) => n + l.length + 1, 0) + p.character;
@@ -40,6 +48,8 @@ function makeFake() {
   const vscode = {
     Position, Range, Diagnostic, CodeAction, WorkspaceEdit,
     CompletionItem, CompletionList, SnippetString, MarkdownString, Hover, TextEdit,
+    Location, DocumentLink, DocumentSymbol,
+    SymbolKind: { Namespace: 2, Class: 4, Function: 11, Variable: 12, Object: 18, Struct: 22 },
     CompletionItemKind: { Keyword: 13, Struct: 21, Variable: 5 },
     DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 },
     CodeActionKind: { QuickFix: 'quickfix' },
@@ -48,6 +58,9 @@ function makeFake() {
       registerCodeActionsProvider: (sel, p) => { providers.push(p); return { dispose() {} }; },
       registerDocumentFormattingEditProvider: (sel, p) => { formatProviders.push(p); return { dispose() {} }; },
       registerDocumentRangeFormattingEditProvider: (sel, p) => { rangeFormatProviders.push(p); return { dispose() {} }; },
+      registerDefinitionProvider: (sel, p) => { definitionProviders.push(p); return { dispose() {} }; },
+      registerDocumentLinkProvider: (sel, p) => { linkProviders.push(p); return { dispose() {} }; },
+      registerDocumentSymbolProvider: (sel, p) => { symbolProviders.push(p); return { dispose() {} }; },
       registerHoverProvider: (sel, p) => { hoverProviders.push(p); return { dispose() {} }; },
       registerCompletionItemProvider: (sel, p) => { completionProviders.push(p); return { dispose() {} }; },
     },
@@ -58,10 +71,20 @@ function makeFake() {
       onDidCloseTextDocument: sub('close'),
       onDidChangeConfiguration: sub('config'),
       getConfiguration: () => ({ get: (k, d) => (k in cfg ? cfg[k] : d) }),
+      onDidChangeWorkspaceFolders: sub('folders'),
+      findFiles: async () => Object.keys(files).map(Uri),
+      fs: { readFile: async (u) => Buffer.from(files[u.path] || '', 'utf8') },
+      createFileSystemWatcher: () => ({
+        onDidChange(fn) { handlers.fsChange = fn; },
+        onDidCreate(fn) { handlers.fsCreate = fn; },
+        onDidDelete(fn) { handlers.fsDelete = fn; },
+        dispose() {},
+      }),
     },
     window: { visibleTextEditors: [], onDidChangeTextEditorSelection: sub('selection') },
   };
-  return { vscode, doc, collection, cfg, handlers, providers, completionProviders, hoverProviders, formatProviders, rangeFormatProviders };
+  return { vscode, doc, collection, cfg, handlers, providers, completionProviders, hoverProviders, formatProviders, rangeFormatProviders,
+    definitionProviders, linkProviders, symbolProviders, files, Uri };
 }
 
 function load(fake) {
@@ -69,7 +92,7 @@ function load(fake) {
   Module._load = function (req, ...rest) {
     return req === 'vscode' ? fake.vscode : orig.call(this, req, ...rest);
   };
-  for (const k of Object.keys(require.cache)) if (/[\\/]src[\\/](diagnostics|quickfix|completion|hover|format)\.js$|[\\/]extension\.js$/.test(k)) delete require.cache[k];
+  for (const k of Object.keys(require.cache)) if (/[\\/]src[\\/](diagnostics|quickfix|completion|hover|format|navigation|workspace-index)\.js$|[\\/]extension\.js$/.test(k)) delete require.cache[k];
   try {
     return {
       diagnostics: require('../../src/diagnostics'),
@@ -77,6 +100,8 @@ function load(fake) {
       completion: require('../../src/completion'),
       hover: require('../../src/hover'),
       format: require('../../src/format'),
+      navigation: require('../../src/navigation'),
+      service: require('../../src/workspace-index'),
     };
   } finally {
     Module._load = orig;
@@ -285,4 +310,150 @@ test('포매터: 이미 정리된 문서는 편집 0개 / db 없이도 동작', 
   const { format } = load(fake);
   format.registerFormatter({ subscriptions: [] }, null);
   assert.deepEqual(fake.formatProviders[0].provideDocumentFormattingEdits(fake.doc, { tabSize: 4, insertSpaces: true }), []);
+});
+
+// ---------------------------------------------------------------------------
+// 워크스페이스 인덱스 / 내비게이션 / 이름 오타 경고 (가짜 파일시스템)
+// ---------------------------------------------------------------------------
+const navDb = createDirectiveDb({
+  directives: [
+    E('server', 'http', ['http'], true),
+    E('location', 'http', ['server', 'location'], true),
+    E('proxy_pass', 'http', ['location']),
+    E('proxy_set_header', 'http', ['http', 'server', 'location']),
+    E('include', 'core', ['any']),
+    E('upstream', 'http', ['http'], true),
+    E('map', 'http', ['http'], true),
+  ],
+  variables: [
+    { name: '$host', prefix: null, family: 'http', module: 'ngx_http_core_module', description: 'host' },
+    { name: '$request_uri', prefix: null, family: 'http', module: 'ngx_http_core_module', description: 'uri' },
+  ],
+});
+const UPSTREAMS_CONF = 'upstream buddham_api {\n  server 127.0.0.1:1;\n}\nmap $http_upgrade $connection_upgrade { default upgrade; }\n';
+const SITE_OK = 'server {\n  location / {\n    proxy_pass http://buddham_api/x;\n    proxy_set_header Upgrade $connection_upgrade;\n    include /etc/nginx/snippets/a.conf;\n  }\n}\n';
+const SITE_TYPO = 'server {\n  location / {\n    proxy_pass http://buddham_apy/x;\n    proxy_set_header Host $requst_uri;\n  }\n}\n';
+
+async function setupWorkspace(siteText) {
+  const fake = makeFake();
+  fake.files['/w/nginx/upstreams.conf'] = UPSTREAMS_CONF;
+  fake.files['/w/nginx/snippets/a.conf'] = 'proxy_set_header X 1;\n';
+  fake.files['/w/nginx/site.conf'] = siteText;
+  fake.doc.uri = fake.Uri('/w/nginx/site.conf');
+  fake.doc.text = siteText;
+  const mods = load(fake);
+  const ctx = { subscriptions: [] };
+  const service = mods.service.createWorkspaceService(ctx, { isKnownDirective: navDb.isKnownDirective });
+  await service.ready;
+  return { fake, mods, ctx, service };
+}
+const at = (fake, needle, add = 2) => fake.doc.positionAt(fake.doc.text.indexOf(needle) + add);
+
+test('인덱스 서비스: 시작 시 파일을 스캔해 upstream/변수 정의를 모은다 (열려 있는 문서는 편집 중 내용 사용)', async () => {
+  const { service } = await setupWorkspace(SITE_OK);
+  assert.equal(service.ws.fileList().length, 3);
+  const defs = service.ws.definitions('upstream', 'buddham_api');
+  assert.equal(defs.length, 1);
+  assert.equal(service.uriOf(defs[0].key).path, '/w/nginx/upstreams.conf');
+  assert.deepEqual([...service.ws.names('variable')], ['connection_upgrade']);
+});
+
+test('인덱스 서비스: 파일 변경/삭제 감시', async () => {
+  const { fake, service } = await setupWorkspace(SITE_OK);
+  let notified = 0;
+  service.onDidChange(() => notified++);
+
+  fake.files['/w/nginx/upstreams.conf'] = 'upstream renamed_api { }\n';
+  await fake.handlers.fsChange(fake.Uri('/w/nginx/upstreams.conf'));
+  assert.deepEqual([...service.ws.names('upstream')], ['renamed_api']);
+  assert.equal(notified, 1);
+
+  fake.handlers.fsDelete(fake.Uri('/w/nginx/upstreams.conf'));
+  assert.deepEqual([...service.ws.names('upstream')], []);
+  assert.equal(service.ws.fileList().length, 2);
+});
+
+test('정의로 이동: upstream 이름 / $변수 / include 경로 / 아무 데도 아닌 곳', async () => {
+  const { fake, mods, service } = await setupWorkspace(SITE_OK);
+  mods.navigation.registerNavigation({ subscriptions: [] }, service);
+  const def = fake.definitionProviders[0];
+
+  const up = def.provideDefinition(fake.doc, at(fake, 'buddham_api'));
+  assert.equal(up.length, 1);
+  assert.equal(up[0].uri.path, '/w/nginx/upstreams.conf');
+  assert.equal(up[0].range.start.line, 0);
+
+  const v = def.provideDefinition(fake.doc, at(fake, '$connection_upgrade'));
+  assert.equal(v[0].uri.path, '/w/nginx/upstreams.conf');
+  assert.equal(v[0].range.start.line, 3); // map 줄
+
+  const inc = def.provideDefinition(fake.doc, at(fake, '/etc/nginx/snippets/a.conf', 10));
+  assert.equal(inc.uri.path, '/w/nginx/snippets/a.conf'); // 서버 경로 → 워크스페이스 파일
+
+  assert.equal(def.provideDefinition(fake.doc, at(fake, 'server {', 1)), undefined);
+});
+
+test('include 링크 / 아웃라인', async () => {
+  const { fake, mods, service } = await setupWorkspace(SITE_OK);
+  mods.navigation.registerNavigation({ subscriptions: [] }, service);
+
+  const links = fake.linkProviders[0].provideDocumentLinks(fake.doc);
+  assert.equal(links.length, 1);
+  assert.equal(links[0].target.path, '/w/nginx/snippets/a.conf');
+  assert.equal(fake.doc.getText(links[0].range), '/etc/nginx/snippets/a.conf');
+
+  const symbols = fake.symbolProviders[0].provideDocumentSymbols(fake.doc);
+  assert.equal(symbols.length, 1);
+  assert.equal(symbols[0].name, 'server');
+  assert.equal(symbols[0].kind, 2); // Namespace
+  assert.equal(symbols[0].children[0].name, 'location');
+  assert.equal(symbols[0].children[0].kind, 11); // Function
+});
+
+test('진단: upstream/변수 오타 경고 + 빠른 수정, 설정으로 끄기', async () => {
+  const { fake, mods, service } = await setupWorkspace(SITE_TYPO);
+  mods.diagnostics.registerDiagnostics({ subscriptions: [] }, navDb, service);
+  mods.quickfix.registerQuickFix({ subscriptions: [] }, navDb, service);
+
+  const diags = fake.collection.last;
+  const up = diags.find((d) => d.code === 'unknown-upstream');
+  const va = diags.find((d) => d.code === 'unknown-variable');
+  assert.ok(up && va);
+  assert.equal(up.severity, 1); // Warning
+  assert.equal(fake.doc.getText(up.range), 'buddham_apy');
+  assert.equal(fake.doc.getText(va.range), '$requst_uri');
+
+  const actions = fake.providers[0].provideCodeActions(fake.doc, null, { diagnostics: diags });
+  const titles = actions.map((a) => a.title);
+  assert.ok(titles.includes("'buddham_api' 로 바꾸기"));
+  assert.ok(titles.includes("'$request_uri' 로 바꾸기"));
+  assert.equal(actions.find((a) => a.title.includes('$request_uri')).edit.edits[0].text, '$request_uri');
+
+  fake.cfg.referenceSeverity = 'off';
+  fake.handlers.config({ affectsConfiguration: () => true });
+  assert.equal(fake.collection.last.some((d) => d.code === 'unknown-upstream' || d.code === 'unknown-variable'), false);
+
+  fake.cfg.referenceSeverity = 'warning';
+  fake.cfg.extraVariables = ['requst_uri'];
+  fake.handlers.config({ affectsConfiguration: () => true });
+  assert.equal(fake.collection.last.some((d) => d.code === 'unknown-variable'), false); // 사용자 지정 변수는 허용
+  assert.equal(fake.collection.last.some((d) => d.code === 'unknown-upstream'), true);
+});
+
+test('진단: 올바른 설정은 오타 경고가 없다', async () => {
+  const { fake, mods, service } = await setupWorkspace(SITE_OK);
+  mods.diagnostics.registerDiagnostics({ subscriptions: [] }, navDb, service);
+  assert.deepEqual(fake.collection.last.map((d) => d.code), []);
+});
+
+test('진단: 다른 파일의 upstream 정의가 바뀌면 열려 있는 문서를 다시 검사한다', async () => {
+  const { fake, mods, service } = await setupWorkspace(SITE_OK);
+  mods.diagnostics.registerDiagnostics({ subscriptions: [] }, navDb, service);
+  assert.equal(fake.collection.last.some((d) => d.code === 'unknown-upstream'), false);
+
+  // buddham_api 가 buddham_apx 로 이름이 바뀌었는데 site.conf 는 아직 buddham_api → 오타처럼 보임
+  fake.files['/w/nginx/upstreams.conf'] = 'upstream buddham_apx { }\n';
+  await fake.handlers.fsChange(fake.Uri('/w/nginx/upstreams.conf'));
+  await new Promise((r) => setTimeout(r, 400)); // schedule 의 debounce(250ms) 대기
+  assert.equal(fake.collection.last.some((d) => d.code === 'unknown-upstream'), true);
 });

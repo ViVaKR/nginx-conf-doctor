@@ -174,6 +174,16 @@ npx vsce package
 
 ## 📝 릴리스 노트
 
+### 0.0.7
+
+- 인덱스 생성 참조찾기(Shift+F12), 이름바꾸기(F2)
+- 마우스 호버 시 정의로 이동 하기
+- 오타경고 및 빠른 수정 제안 및 안내
+- 설정 팔일 점검 71개 진단 테스트 오류 0건
+- 버그 수정, 테스트 (tests) 179개 통과
+- Cmd+Click, F12 클릭으로 선언으로 이동하기
+- Cmd+Shift+O server > location 아웃라인
+
 ### 0.0.6
 
 - Nginx 전용 포맷터(Document Formatting Provider) 들여쓰기 규칙 개선

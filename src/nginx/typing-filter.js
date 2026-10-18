@@ -4,7 +4,7 @@
 // 커서가 그 토큰을 벗어나면 다시 보이므로, 엔터를 치고 다음 줄로 가는 순간 표시된다.
 'use strict';
 
-const HIDE_WHILE_TYPING = new Set(['missing-semicolon', 'unknown-directive', 'directive-not-allowed']);
+const HIDE_WHILE_TYPING = new Set(['missing-semicolon', 'unknown-directive', 'directive-not-allowed', 'unknown-upstream', 'unknown-variable']);
 
 function suppressWhileTyping(diagnostics, cursorOffsets) {
   if (!cursorOffsets || cursorOffsets.length === 0) return diagnostics;

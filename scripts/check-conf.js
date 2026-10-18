@@ -19,6 +19,8 @@ const { parse } = require('../src/nginx/parser');
 const { createDirectiveDb } = require('../src/nginx/directive-db');
 const { lintContexts } = require('../src/nginx/lint');
 const { isMainFile } = require('../src/nginx/completion');
+const { indexText, lintReferences } = require('../src/nginx/symbols');
+const { createWorkspaceIndex } = require('../src/nginx/workspace-index');
 
 const CONF_RE = /\.(conf|nginx|types)$|^(fastcgi|scgi|uwsgi)_params$|^fastcgi\.conf$/;
 
@@ -44,10 +46,11 @@ function collectFiles(target, all, out = []) {
 }
 
 /** @returns {{ diagnostics: Array, unknown: Map<string, number> }} */
-function scanText(text, isKnownDirective, db = null, fileName = '') {
+function scanText(text, isKnownDirective, db = null, fileName = '', refs = null) {
   const r = parse(text, { isKnownDirective });
   const lines = text.split(/\r\n|\n/);
-  const all = db ? r.diagnostics.concat(lintContexts(r.root, { db, isMain: isMainFile(r.root, fileName) })) : r.diagnostics;
+  let all = db ? r.diagnostics.concat(lintContexts(r.root, { db, isMain: isMainFile(r.root, fileName) })) : r.diagnostics;
+  if (refs && db) all = all.concat(lintReferences(indexText(text, { isKnownDirective }), refs.ws, db));
   all.sort((a, b) => a.start - b.start);
   const diagnostics = all.map((d) => {
     const pos = r.positionAt(d.start);
@@ -106,6 +109,19 @@ function main(argv) {
   let filesWithIssues = 0;
   let total = 0;
 
+  // 1단계: 폴더 전체의 upstream/변수 정의를 먼저 모은다 (정의가 다른 파일에 있어도 오탐하지 않도록)
+  const ws = createWorkspaceIndex();
+  const texts = new Map();
+  for (const file of files) {
+    try {
+      const text = fs.readFileSync(file, 'utf8');
+      texts.set(file, text);
+      ws.update(file, file, indexText(text, { isKnownDirective: isKnown }));
+    } catch {
+      /* 읽기 실패는 건너뜀 */
+    }
+  }
+
   for (const file of files) {
     let text;
     try {
@@ -113,7 +129,7 @@ function main(argv) {
     } catch {
       continue;
     }
-    const { diagnostics, unknown } = scanText(text, isKnown, db, file);
+    const { diagnostics, unknown } = scanText(text, isKnown, db, file, { ws });
     for (const [k, v] of unknown) unknownTotal.set(k, (unknownTotal.get(k) || 0) + v);
     if (diagnostics.length === 0) continue;
     filesWithIssues++;

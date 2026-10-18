@@ -4,6 +4,7 @@
 const vscode = require('vscode');
 const { parse } = require('./nginx/parser');
 const { lintUnknownDirectives, lintContexts } = require('./nginx/lint');
+const { lintReferences } = require('./nginx/symbols');
 const { isMainFile } = require('./nginx/completion');
 const { suppressWhileTyping } = require('./nginx/typing-filter');
 
@@ -19,8 +20,9 @@ const SEVERITY = {
   info: vscode.DiagnosticSeverity.Information,
 };
 
-/** @param {{ isKnownDirective: Function, names: () => string[] } | null} db */
-function registerDiagnostics(context, db) {
+/** @param {{ isKnownDirective: Function, names: () => string[] } | null} db
+ *  @param {any} [service] createWorkspaceService() 결과. 없으면 upstream/변수 오타 경고는 건너뛴다. */
+function registerDiagnostics(context, db, service = null) {
   const collection = vscode.languages.createDiagnosticCollection(SOURCE);
   const timers = new Map();
   const names = db ? db.names() : [];
@@ -31,6 +33,8 @@ function registerDiagnostics(context, db) {
       extra: new Set(cfg.get('extraDirectives', [])),
       unknownSeverity: cfg.get('unknownDirectiveSeverity', 'warning'),
       contextSeverity: cfg.get('contextSeverity', 'warning'),
+      referenceSeverity: cfg.get('referenceSeverity', 'warning'),
+      extraVariables: new Set(cfg.get('extraVariables', []).map((v) => v.replace(/^\$/, ''))),
     };
   }
 
@@ -45,7 +49,7 @@ function registerDiagnostics(context, db) {
     if (doc.languageId !== LANGUAGE_ID) return;
     const isKnownDirective = db ? db.isKnownDirective : undefined;
     const parsed = parse(doc.getText(), { isKnownDirective });
-    const { extra, unknownSeverity, contextSeverity } = readConfig();
+    const { extra, unknownSeverity, contextSeverity, referenceSeverity, extraVariables } = readConfig();
 
     let all = parsed.diagnostics;
     if (db && unknownSeverity !== 'off') {
@@ -59,6 +63,11 @@ function registerDiagnostics(context, db) {
       const isMain = isMainFile(parsed.root, doc.fileName || '');
       const wrong = lintContexts(parsed.root, { db, isMain }).map((d) => ({ ...d, severity: contextSeverity }));
       all = all.concat(wrong);
+    }
+    if (service && db && referenceSeverity !== 'off') {
+      const fi = service.indexDocument(doc); // 이 문서의 "지금 내용"을 인덱스에 반영
+      const typos = lintReferences(fi, service.ws, db, { extraVars: extraVariables }).map((d) => ({ ...d, severity: referenceSeverity }));
+      all = all.concat(typos);
     }
     all = all.sort((a, b) => a.start - b.start || a.end - b.end);
 
@@ -92,6 +101,8 @@ function registerDiagnostics(context, db) {
       timers.delete(doc.uri.toString());
       collection.delete(doc.uri);
     }),
+    // 다른 파일이 바뀌어 upstream/변수 정의가 달라지면 열려 있는 문서를 다시 검사
+    ...(service ? [service.onDidChange(() => vscode.workspace.textDocuments.forEach(schedule))] : []),
     // 설정(extraDirectives / 심각도)을 바꾸면 열려 있는 문서를 즉시 다시 검사
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration(CONFIG)) vscode.workspace.textDocuments.forEach(refresh);

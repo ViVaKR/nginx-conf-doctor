@@ -10,6 +10,10 @@
 </p>
 
 <p align="center">
+  <a href="README.md"><b>한국어</b></a> | <a href="README.en.md"><b>English</b></a>
+</p>
+
+<p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=buddham-hq.nginx-conf-doctor"><img alt="Install" src="https://img.shields.io/badge/INSTALL-VS%20Code%20Marketplace-38bdf8?style=for-the-badge&labelColor=0b1220&logo=visualstudiocode&logoColor=38bdf8"></a>
   <a href="https://github.com/ViVaKR/nginx-conf-doctor"><img alt="GitHub" src="https://img.shields.io/badge/SOURCE-GitHub-f43f9a?style=for-the-badge&labelColor=0b1220&logo=github&logoColor=f43f9a"></a>
   <a href="https://github.com/ViVaKR/nginx-conf-doctor/issues"><img alt="Issues" src="https://img.shields.io/badge/FEEDBACK-Issues-a78bfa?style=for-the-badge&labelColor=0b1220&logo=githubissues&logoColor=a78bfa"></a>
@@ -26,8 +30,8 @@
 <p align="center">
   <a href="#-주요-기능">기능</a> ·
   <a href="#-지원-파일">지원 파일</a> ·
-  <a href="#️-설정">설정</a> ·
-  <a href="#️-알려진-제한">알려진 제한</a> ·
+  <a href="#%EF%B8%8F-설정">설정</a> ·
+  <a href="#%EF%B8%8F-알려진-제한">알려진 제한</a> ·
   <a href="#-릴리스-노트">릴리스 노트</a>
 </p>
 
@@ -83,6 +87,16 @@ nginx 설정 파일(`nginx.conf`, `conf.d/*.conf` 등)을 편집할 때 **구문
 ### Hover 문서
 지시어에 마우스를 올리면 설명을 볼 수 있습니다.
 
+### 요약
+- 구문 강조(지시어 1,011개 데이터에서 자동 생성)
+- 세미콜론, 중괄호, 따옴표 진단과 오타 경고(빠른 수정 포함)
+- 컨텍스트 오류 경고와 컨텍스트 인식 자동완성
+- hover 문서, 문서 포맷터와 Enter 자동 들여쓰기
+- include 경로 클릭, 정의로 이동, 참조 찾기, 이름 바꾸기, 아웃라인
+- upstream과 변수 이름 오타 경고
+
+---
+
 ## 📂 지원 파일
 
 아래 파일은 자동으로 `nginx` 언어로 인식됩니다.
@@ -119,8 +133,6 @@ nginx 설정 파일(`nginx.conf`, `conf.d/*.conf` 등)을 편집할 때 **구문
 
 ### 권장 VS Code 설정 (settings.json)
 
-
-
 ```json
 "[nginx]": {
   "editor.suggest.insertMode": "insert",
@@ -147,6 +159,7 @@ nginx 설정 파일(`nginx.conf`, `conf.d/*.conf` 등)을 편집할 때 **구문
 ## 📋 요구 사항
 
 - VS Code `1.90.0` 이상
+- 기능이 중복되는 확장 삭제(Nginx 관련 확장)
 
 ## ⚠️ 알려진 제한
 
@@ -158,7 +171,6 @@ nginx 설정 파일(`nginx.conf`, `conf.d/*.conf` 등)을 편집할 때 **구문
 
 ```bash
 npm install
-
 npm run gen:grammar      # 구문 강조 문법 생성
 npm run gen:directives   # 지시어 데이터 생성
 npm run check            # 설정 파일 점검 스크립트
@@ -166,7 +178,7 @@ npm run mutate           # 변이 검사
 npm run test:unit        # 단위 테스트
 ```
 
-패키징은 아래 명령을 사용합니다.
+**패키징은 아래 명령을 사용합니다.**
 
 ```bash
 npx vsce package
@@ -174,51 +186,44 @@ npx vsce package
 
 ## 📝 릴리스 노트
 
-## [1.0.1] - 2026-10-19
-### Added (새로운 기능)
-- 문서 포맷터 및 Enter 자동 들여쓰기 기능 추가 (탭/공백 혼재 정리, 여러 줄 문자열·Lua 본문 보호)
-- include 경로 Ctrl+클릭 이동 기능
-- upstream 및 `$변수` 정의로 이동, 참조 찾기, 이름 바꾸기(F2), 아웃라인(Outline) 지원
-- upstream 및 변수 이름 오타 경고와 빠른 수정(Quick Fix) 제공
-- "이 위치에서는 쓸 수 없는 지시어" 컨텍스트 오류 경고 기능
-- 컨텍스트 인식 자동완성 및 Hover 문서 지원
-- Nginx 공식 문서(nginx.org) 기준 1,011개 지시어 데이터 갱신
+### [1.0.1] - 2026-10-19 (정식 버전 배포) 🎉
+- **문서 포맷터 & 들여쓰기**: Nginx 전용 포맷터 탑재 및 Enter 자동 들여쓰기 지원 (탭/공백 혼재 정리, 여러 줄 문자열·Lua 본문 보호)
+- **스마트 네비게이션**: `include` 파일 경로 Ctrl+클릭 이동, `upstream` 및 `$변수` 정의로 이동(Go to Definition), 참조 찾기(Find References, Shift+F12), 이름 바꾸기(Rename, F2), 심볼 아웃라인(Outline)
+- **컨텍스트 인식 오류 진단**: 올바른 스코프(`http`, `server`, `location` 등) 외부 사용 시 경고 및 오타 경고/빠른 수정(Quick Fix) 제공
+- **지시어 무장**: Nginx 공식 문서(nginx.org) 기준 1,011개 최신 지시어 데이터 세트 업데이트 및 Hover 설명 문서 지원
 
-### 0.0.7
+<details>
+<summary><b>📦 이전 베이타 / 개발 버전 이력 보기 (0.0.1 ~ 0.0.7)</b></summary>
 
+#### [0.0.7]
 - 인덱스 생성 참조찾기(Shift+F12), 이름바꾸기(F2)
 - 마우스 호버 시 정의로 이동 하기
 - 오타경고 및 빠른 수정 제안 및 안내
-- 설정 팔일 점검 71개 진단 테스트 오류 0건
+- 설정 파일 점검 71개 진단 테스트 오류 0건
 - 버그 수정, 테스트 (tests) 179개 통과
 - Cmd+Click, F12 클릭으로 선언으로 이동하기
 - Cmd+Shift+O server > location 아웃라인
 
-### 0.0.6
-
+#### [0.0.6]
 - Nginx 전용 포맷터(Document Formatting Provider) 들여쓰기 규칙 개선
-- 버그 수정, tests 153
+- 버그 수정, tests 153개 통과
 
-### 0.0.5
-
+#### [0.0.5]
 - Nginx 전용 포맷터(Document Formatting Provider) 탑재 및 들여쓰기 규칙 개선
-
 - README.md 내 포맷터 권장 설정([nginx]) 및 파일 연관(files.associations) 안내 추가
 
-### 0.0.3
-
+#### [0.0.3]
 - 마우스 호버 도움말 안내문 버그 수정
+- 배포 키워드 목록 보강
 
-배포 키워드 목록 보강
-
-### 0.0.2
-
+#### [0.0.2]
 - 아이콘 및 마켓플레이스 소개 페이지 정비
 
-### 0.0.1
-
+#### [0.0.1]
 - 최초 릴리스
 - 구문 강조, 구조/컨텍스트/알 수 없는 지시어 진단, 빠른 수정, 자동완성, hover 문서
+
+</details>
 
 ## 📄 라이선스
 

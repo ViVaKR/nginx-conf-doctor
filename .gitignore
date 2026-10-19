@@ -5,3 +5,5 @@ node_modules
 /nginx/
 /*.conf
 ref.md
+README.backup.md
+README.Test.md

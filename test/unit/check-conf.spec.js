@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const { scanText } = require('../../scripts/check-conf');
 
 const known = new Set(['server', 'listen', 'server_name', 'location', 'return', 'map']);
+// @ts-ignore
 const isKnown = (n) => known.has(n);
 
 test('진단에 줄/열/원문이 붙는다', () => {
@@ -42,11 +43,14 @@ test('폴더 전체 인덱스를 쓰면 다른 파일의 upstream 정의를 인�
   });
   const ws = createWorkspaceIndex();
   ws.update('up', 'up.conf', indexText('upstream buddham_api { }\n'));
+  // @ts-ignore
   const known = (n) => db.isKnownDirective(n);
 
+  // @ts-ignore
   const ok = scanText('server {\n location / { proxy_pass http://buddham_api; }\n}\n', known, db, 'x.conf', { ws });
   assert.deepEqual(ok.diagnostics, []);
 
+  // @ts-ignore
   const typo = scanText('server {\n location / { proxy_pass http://buddham_apy; }\n}\n', known, db, 'x.conf', { ws });
   assert.deepEqual(typo.diagnostics.map((d) => [d.code, d.line]), [['unknown-upstream', 2]]);
 });

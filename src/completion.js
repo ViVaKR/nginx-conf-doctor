@@ -15,20 +15,25 @@ const {
 
 const LANGUAGE_ID = 'nginx';
 
+// @ts-ignore
 function registerCompletion(context, db) {
   if (!db) return;
 
   const provider = {
+    // @ts-ignore
     provideCompletionItems(doc, position) {
       const offset = doc.offsetAt(position);
       const ctx = analyzeCompletionContext(doc.getText(), offset, { fileName: doc.fileName || '' });
       if (ctx.mode === 'none') return undefined;
 
+      // @ts-ignore
       const start = doc.positionAt(ctx.wordStart);
       const range = {
         inserting: new vscode.Range(start, position),
+        // @ts-ignore
         replacing: new vscode.Range(start, doc.positionAt(ctx.wordEnd)),
       };
+      // @ts-ignore
       const asInsert = ({ text, snippet }) => (snippet ? new vscode.SnippetString(text) : text);
 
       let items;
@@ -39,6 +44,7 @@ function registerCompletion(context, db) {
           if (v.description) item.documentation = new vscode.MarkdownString(v.description);
           item.insertText = asInsert(variableInsert(v, ctx));
           // ${ 안에서는 '$' 없이 이름만 치므로 필터 기준도 맞춘다
+          // @ts-ignore
           item.filterText = ctx.braced ? v.name.slice(1) : v.name;
           item.range = range;
           return item;

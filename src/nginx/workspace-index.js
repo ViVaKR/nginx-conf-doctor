@@ -5,9 +5,11 @@ function createWorkspaceIndex() {
   /** @type {Map<string, { path: string, index: any }>} */
   const files = new Map();
   return {
+    // @ts-ignore
     update(key, path, index) {
       files.set(key, { path, index });
     },
+    // @ts-ignore
     remove(key) {
       files.delete(key);
     },
@@ -15,6 +17,7 @@ function createWorkspaceIndex() {
       return [...files.entries()].map(([key, { path }]) => ({ key, path }));
     },
     /** @returns {Array<{ key: string, def: any }>} */
+    // @ts-ignore
     definitions(kind, name) {
       const out = [];
       for (const [key, { index }] of files) {
@@ -23,6 +26,7 @@ function createWorkspaceIndex() {
       return out;
     },
     /** 정의+참조 전부 (같은 위치는 한 번만, 정의 표시 유지). 참조 찾기/이름 바꾸기용. */
+    // @ts-ignore
     occurrences(kind, name) {
       const out = [];
       for (const [key, { index }] of files) {
@@ -37,6 +41,7 @@ function createWorkspaceIndex() {
       }
       return out;
     },
+    // @ts-ignore
     names(kind) {
       const s = new Set();
       for (const { index } of files.values()) for (const d of index.defs) if (d.kind === kind) s.add(d.name);

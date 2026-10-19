@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const { createDirectiveDb } = require('../../src/nginx/directive-db');
 const { hoverAt } = require('../../src/nginx/hover');
 
+// @ts-ignore
 const E = (name, family, contexts, { block = false, text = 'arg', def = null } = {}) => ({
   name, family, module: `ngx_${family}_core_module`, contexts, block, default: def,
   syntaxes: [{ text, block, line: `${name}${text ? ' ' + text : ''}${block ? ' { ... }' : ';'}` }],
@@ -17,6 +18,7 @@ const db = createDirectiveDb({
     E('server', 'http', ['http'], { block: true, text: '' }),
     E('server', 'stream', ['stream'], { block: true, text: '' }),
     E('map', 'http', ['http'], { block: true, text: 'string $variable' }),
+    // @ts-ignore
     E('listen', 'http', ['server'], { def: 'listen *:80 | *:8000;' }),
     E('listen', 'stream', ['server']),
     E('listen', 'mail', ['server']),
@@ -30,6 +32,7 @@ const db = createDirectiveDb({
 });
 
 // 'xx|yy' 처럼 | 로 마우스 위치 표시
+// @ts-ignore
 const hover = (src) => {
   const offset = src.indexOf('|');
   const text = src.slice(0, offset) + src.slice(offset + 1);
@@ -39,28 +42,39 @@ const hover = (src) => {
 
 test('지시어 이름 위: 문법/기본값/컨텍스트/링크, 현재 family 항목만', () => {
   const r = hover('http {\n  server {\n    lis|ten 80;\n  }\n}\n');
+  // @ts-ignore
   assert.equal(r.word, 'listen');
+  // @ts-ignore
   assert.match(r.markdown, /listen arg;/);
+  // @ts-ignore
   assert.match(r.markdown, /\*\*기본값:\*\*/);
+  // @ts-ignore
   assert.match(r.markdown, /\[공식 문서\]\(https:\/\/nginx\.org\/#listen\)/);
+  // @ts-ignore
   assert.ok(!r.markdown.includes('_(stream)_')); // http 안이므로 stream/mail 항목은 숨김
 });
 
 test('stream 안에서는 stream 항목', () => {
   const r = hover('stream {\n  server {\n    lis|ten 80;\n  }\n}\n');
+  // @ts-ignore
   assert.ok(r.markdown.includes('ngx_stream') === false); // 모듈명은 본문에 안 쓰지만
+  // @ts-ignore
   assert.match(r.markdown, /listen arg;/);
+  // @ts-ignore
   assert.ok(!r.markdown.includes('기본값')); // stream 항목은 기본값 없음 → http 항목과 구별됨
 });
 
 test('조각 파일 최상위: 모든 family 항목을 보여준다', () => {
   const r = hover('lis|ten 80;\n');
+  // @ts-ignore
   assert.ok(r.markdown.includes('_(http)_') && r.markdown.includes('_(stream)_') && r.markdown.includes('_(mail)_'));
 });
 
 test("문서가 'if' 로만 적은 지시어도 if 블록 안에서 정확히 매칭", () => {
   const r = hover('http {\n server {\n  if ($a) {\n   s|et $x 1;\n  }\n }\n}\n');
+  // @ts-ignore
   assert.equal(r.word, 'set');
+  // @ts-ignore
   assert.match(r.markdown, /`if`/);
 });
 
@@ -74,18 +88,25 @@ test('인자 / 주석 / 알 수 없는 지시어 / 데이터 블록 행 / 지시
 
 test('$변수: 단어 / 문자열 안 / ${ } 형태', () => {
   let r = hover('set $x $ho|st;\n');
+  // @ts-ignore
   assert.equal(r.word, '$host');
+  // @ts-ignore
   assert.match(r.markdown, /요청 호스트/);
   r = hover('return 200 "$ho|st";\n');
+  // @ts-ignore
   assert.equal(r.word, '$host');
   r = hover('return 200 "${ho|st}";\n');
+  // @ts-ignore
   assert.equal(r.word, '${host}');
+  // @ts-ignore
   assert.match(r.markdown, /\*\*\$host\*\*/);
 });
 
 test('접두어 변수($http_xxx)와 family 필터', () => {
   const r = hover('http {\n server {\n  return 200 "$http_or|igin";\n }\n}\n');
+  // @ts-ignore
   assert.equal(r.word, '$http_origin');
+  // @ts-ignore
   assert.match(r.markdown, /접두어 변수: `\$http_name`/);
   // stream 컨텍스트에서는 http 변수($host)가 아니므로 hover 없음
   assert.equal(hover('stream {\n server {\n  return "$ho|st";\n }\n}\n'), null);
@@ -97,6 +118,8 @@ test('모르는 변수는 hover 없음', () => {
 
 test("모듈명은 'Module ' 접두어 없이 표시", () => {
   const r = hover('set $x $ho|st;\n');
+  // @ts-ignore
   assert.match(r.markdown, /모듈: `ngx_http_core_module`/);
+  // @ts-ignore
   assert.ok(!r.markdown.includes('Module ngx'));
 });

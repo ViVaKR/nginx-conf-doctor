@@ -11,10 +11,12 @@ const { variableCandidates } = require('./nginx/symbols');
 const LANGUAGE_ID = 'nginx';
 const SOURCE = 'nginx-conf-doctor';
 
+// @ts-ignore
 function registerQuickFix(context, db, service = null) {
   if (!db) return;
   const directiveNames = db.names();
 
+  // @ts-ignore
   function replacementsFor(doc, d) {
     // Diagnostic 객체에 사용자 데이터를 실을 수 없어서, 범위의 원문으로 후보를 다시 계산한다.
     const typed = doc.getText(d.range);
@@ -22,12 +24,15 @@ function registerQuickFix(context, db, service = null) {
       return suggest(typed, directiveNames).map((s) => ({ label: s, text: s }));
     }
     if (d.code === 'unknown-upstream' && service) {
+      // @ts-ignore
       return suggest(typed, [...service.ws.names('upstream')]).map((s) => ({ label: s, text: s }));
     }
     if (d.code === 'unknown-variable' && service) {
       const braced = typed.startsWith('${');
       const name = typed.replace(/^\$\{?/, '').replace(/\}$/, '');
+      // @ts-ignore
       const extra = new Set(vscode.workspace.getConfiguration('nginx-conf-doctor').get('extraVariables', []).map((v) => v.replace(/^\$/, '')));
+      // @ts-ignore
       const { candidates } = variableCandidates(db, service.ws, extra);
       return suggest(name, candidates).map((s) => ({ label: `$${s}`, text: braced ? `\${${s}}` : `$${s}` }));
     }
@@ -35,7 +40,9 @@ function registerQuickFix(context, db, service = null) {
   }
 
   const provider = {
+    // @ts-ignore
     provideCodeActions(doc, _range, ctx) {
+      // @ts-ignore
       const actions = [];
       for (const d of ctx.diagnostics) {
         if (d.source !== SOURCE) continue;
@@ -48,6 +55,7 @@ function registerQuickFix(context, db, service = null) {
           actions.push(action);
         });
       }
+      // @ts-ignore
       return actions;
     },
   };

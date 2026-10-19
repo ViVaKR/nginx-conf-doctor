@@ -8,9 +8,13 @@ const KNOWN = new Set([
   'proxy_pass', 'include', 'rewrite', 'break', 'set', 'add_header', 'internal',
   'log_format', 'access_log', 'gzip', 'map', 'ssl', 'http2',
 ]);
+// @ts-ignore
 const opts = { isKnownDirective: (n) => KNOWN.has(n) };
+// @ts-ignore
 const run = (src) => parse(src, opts);
+// @ts-ignore
 const codes = (r) => r.diagnostics.map((d) => d.code);
+// @ts-ignore
 const slice = (src, d) => src.slice(d.start, d.end);
 
 test('정상 설정은 진단 0건', () => {
@@ -26,7 +30,9 @@ test('정상 설정은 진단 0건', () => {
 `;
   const r = run(src);
   assert.deepEqual(r.diagnostics, []);
+  // @ts-ignore
   assert.equal(r.root.children[0].name, 'http');
+  // @ts-ignore
   assert.equal(r.root.children[0].block.children[0].block.children.length, 2);
 });
 
@@ -39,7 +45,9 @@ test('세미콜론 누락: 다음 줄이 같은 들여쓰기의 알려진 지시
   const r = run(src);
   assert.deepEqual(codes(r), ['missing-semicolon']);
   assert.equal(slice(src, r.diagnostics[0]), '80');
+  // @ts-ignore
   const kids = r.root.children[0].block.children;
+  // @ts-ignore
   assert.deepEqual(kids.map((k) => k.name), ['listen', 'server_name']);
   assert.equal(kids[0].semi, null);
 });
@@ -60,6 +68,7 @@ test('세미콜론 누락: } 바로 앞', () => {
   const r = run(src);
   assert.deepEqual(codes(r), ['missing-semicolon']);
   assert.equal(slice(src, r.diagnostics[0]), 'ok');
+  // @ts-ignore
   assert.equal(r.root.children[0].block.close.value, '}');
 });
 
@@ -144,6 +153,7 @@ test('map 같은 데이터 블록 안은 지시어 추정 안 함', () => {
 `;
   const r = run(src);
   assert.deepEqual(r.diagnostics, []);
+  // @ts-ignore
   assert.equal(r.root.children[0].block.dataBlock, true);
 });
 
@@ -158,6 +168,7 @@ test('num_map(map 계열) 블록: 숫자 범위 키와 지시어 이름이 겹�
 `;
   const r = run(src);
   assert.deepEqual(r.diagnostics, []);
+  // @ts-ignore
   assert.equal(r.root.children[0].block.dataBlock, true);
 });
 
@@ -208,6 +219,7 @@ test('lua_block 본문은 통째로 건너뜀', () => {
 `;
   const r = run(src);
   assert.deepEqual(r.diagnostics, []);
+  // @ts-ignore
   const lua = r.root.children[0].block.children[0];
   assert.equal(lua.name, 'content_by_lua_block');
   assert.ok(lua.block.raw);

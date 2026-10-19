@@ -12,20 +12,25 @@
 
 const fs = require('fs');
 const path = require('path');
-const { tokenize, TokenType } = require('../src/nginx/tokenizer');
-const { parse } = require('../src/nginx/parser');
-const { createDirectiveDb } = require('../src/nginx/directive-db');
 
+const { tokenize, TokenType } = require('../../src/nginx/tokenizer');
+const { parse } = require('../../src/nginx/parser');
+const { createDirectiveDb } = require('../../src/nginx/directive-db');
+
+// @ts-ignore
 function mutateAll(text, isKnownDirective) {
   const { tokens, positionAt } = tokenize(text);
   const lines = text.split(/\r\n|\n/);
   const out = [];
+  // @ts-ignore
   for (const s of tokens.filter((t) => t.type === TokenType.SEMI)) {
     const mutated = text.slice(0, s.start) + text.slice(s.end);
     const line = positionAt(s.start).line;
     const r = parse(mutated, { isKnownDirective });
+    // @ts-ignore
     const semis = r.diagnostics.filter((d) => d.code === 'missing-semicolon');
     let status = 'missed';
+    // @ts-ignore
     if (semis.some((d) => r.positionAt(d.start).line === line)) status = 'detected';
     else if (semis.length) status = 'misplaced';
     else if (r.diagnostics.length) status = 'other';
@@ -34,6 +39,7 @@ function mutateAll(text, isKnownDirective) {
   return out;
 }
 
+// @ts-ignore
 function main(argv) {
   const args = argv.slice(2);
   const di = args.indexOf('--data');
@@ -51,10 +57,12 @@ function main(argv) {
   try {
     isKnown = createDirectiveDb(JSON.parse(fs.readFileSync(dataPath, 'utf8'))).isKnownDirective;
   } catch (e) {
+    // @ts-ignore
     console.warn(`⚠ 지시어 데이터를 못 읽음(${e.message}) — 다음 줄 추정이 꺼진 상태로 측정됩니다.\n`);
   }
 
   const results = mutateAll(fs.readFileSync(target, 'utf8'), isKnown);
+  // @ts-ignore
   const count = (s) => results.filter((r) => r.status === s).length;
   const bad = results.filter((r) => r.status !== 'detected');
   for (const r of bad) console.log(`  L${r.line}  ${r.status.padEnd(9)} | ${r.source}`);

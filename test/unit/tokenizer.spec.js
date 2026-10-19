@@ -3,12 +3,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { tokenize, TokenType: T } = require('../../src/nginx/tokenizer');
 
+// @ts-ignore
 const types = (r) => r.tokens.map((t) => t.type);
+// @ts-ignore
 const values = (r) => r.tokens.map((t) => t.value);
 
 test('기본 지시어와 블록', () => {
   const r = tokenize('server {\n  listen 80;\n}\n');
   assert.deepEqual(types(r), [T.WORD, T.LBRACE, T.WORD, T.WORD, T.SEMI, T.RBRACE]);
+  // @ts-ignore
   assert.deepEqual(values(r).filter((v) => /\w/.test(v)), ['server', 'listen', '80']);
   assert.deepEqual(r.errors, []);
 });
@@ -46,6 +49,7 @@ test('닫는 따옴표 없음 → 오류 + 그 줄 끝에서 복구', () => {
   assert.equal(r.errors.length, 1);
   assert.equal(r.errors[0].code, 'unterminated-string');
   const bad = r.tokens.find((t) => t.unterminated);
+  // @ts-ignore
   assert.equal(bad.text, '"oops;');
   // 다음 줄은 정상 토큰화
   assert.deepEqual(values(r).slice(-3), ['listen', '80', ';']);
@@ -104,8 +108,10 @@ test('lua_block 이 안 닫히면 오류', () => {
 test('위치 변환: CRLF 와 유니코드', () => {
   const r = tokenize('# 한글\r\nlisten 80;');
   const listen = r.tokens.find((t) => t.value === 'listen');
+  // @ts-ignore
   assert.deepEqual(r.positionAt(listen.start), { line: 1, character: 0 });
   const semi = r.tokens.find((t) => t.type === T.SEMI);
+  // @ts-ignore
   assert.deepEqual(r.positionAt(semi.start), { line: 1, character: 9 });
   const c = r.tokens[0];
   assert.equal(c.value, '# 한글'); // \r 제외

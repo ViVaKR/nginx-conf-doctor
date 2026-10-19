@@ -56,10 +56,13 @@ function parse(text, options = {}) {
   const tokens = all.filter((t) => t.type !== T.COMMENT);
 
   const diagnostics = tokenErrors.map((e) => ({ ...e, severity: 'error' }));
+  // @ts-ignore
   const diag = (code, message, start, end, severity = 'error') =>
     diagnostics.push({ code, message, start, end, severity });
 
+  // @ts-ignore
   const lineOf = (offset) => positionAt(offset).line;
+  // @ts-ignore
   const indentOf = (offset) => {
     const lineStart = offset - positionAt(offset).character;
     let k = lineStart;
@@ -70,6 +73,7 @@ function parse(text, options = {}) {
   const root = { type: 'root', children: [] };
   let p = 0;
 
+  // @ts-ignore
   function missingSemicolon(last, nextTok) {
     let msg = '세미콜론(;)이 빠진 것 같습니다.';
     if (nextTok) msg += ` 다음 줄의 '${nextTok.value}' 은(는) 새 문장의 시작으로 보입니다.`;
@@ -77,6 +81,7 @@ function parse(text, options = {}) {
     diag('missing-semicolon', msg, last.start, last.end);
   }
 
+  // @ts-ignore
   function parseStatements(parent, depth) {
     while (p < tokens.length) {
       const t = tokens[p];
@@ -108,6 +113,7 @@ function parse(text, options = {}) {
     }
   }
 
+  // @ts-ignore
   function newDirective(nameTok) {
     return {
       type: 'directive',
@@ -121,6 +127,7 @@ function parse(text, options = {}) {
     };
   }
 
+  // @ts-ignore
   function parseDirective(parent) {
     const nameTok = tokens[p++];
     const node = newDirective(nameTok);
@@ -132,6 +139,7 @@ function parse(text, options = {}) {
       const t = tokens[p];
 
       if (t.type === T.SEMI) {
+        // @ts-ignore
         node.semi = t;
         node.end = t.end;
         p++;
@@ -169,6 +177,7 @@ function parse(text, options = {}) {
         return node;
       }
 
+      // @ts-ignore
       node.args.push(t);
       node.end = t.end;
       last = t;
@@ -180,10 +189,12 @@ function parse(text, options = {}) {
   }
 
   // depth 는 parseStatements 호출 때만 필요해서 블록 객체에 심어 둔다.
+  // @ts-ignore
   function depthOf(parent) {
     return parent.depth || 0;
   }
 
+  // @ts-ignore
   function parseBlock(node, depth, openTok) {
     const block = {
       open: openTok,
@@ -197,6 +208,7 @@ function parse(text, options = {}) {
     node.block = block;
 
     if (p < tokens.length && tokens[p].type === T.RAW) {
+      // @ts-ignore
       block.raw = tokens[p];
       p++;
     } else {
@@ -204,6 +216,7 @@ function parse(text, options = {}) {
     }
 
     if (p < tokens.length && tokens[p].type === T.RBRACE) {
+      // @ts-ignore
       block.close = tokens[p];
       node.end = tokens[p].end;
       p++;

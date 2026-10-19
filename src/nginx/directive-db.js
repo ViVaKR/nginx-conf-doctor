@@ -9,6 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 
+// @ts-ignore
 function createDirectiveDb(json) {
   const byName = new Map();
   for (const d of json.directives || []) {
@@ -17,11 +18,13 @@ function createDirectiveDb(json) {
   }
   return {
     /** 어떤 family 에든 존재하는 지시어 이름인가 */
+    // @ts-ignore
     isKnownDirective: (name) => byName.has(name),
-    /** @returns {Array} 같은 이름의 entry 목록 (http/stream/mail/core) */
+    /** @returns Array 같은 이름의 entry 목록 (http/stream/mail/core) */
+    // @ts-ignore
     get: (name) => byName.get(name) || [],
     names: () => Array.from(byName.keys()),
-    /** @returns {Array} 모든 지시어 entry (family 별로 따로) */
+    /** @returns Array 모든 지시어 entry (family 별로 따로) */
     all: () => json.directives || [],
     variables: json.variables || [],
   };

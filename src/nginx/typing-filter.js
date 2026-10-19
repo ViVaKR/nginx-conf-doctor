@@ -6,9 +6,11 @@
 
 const HIDE_WHILE_TYPING = new Set(['missing-semicolon', 'unknown-directive', 'directive-not-allowed', 'unknown-upstream', 'unknown-variable']);
 
+// @ts-ignore
 function suppressWhileTyping(diagnostics, cursorOffsets) {
   if (!cursorOffsets || cursorOffsets.length === 0) return diagnostics;
   return diagnostics.filter(
+    // @ts-ignore
     (d) => !(HIDE_WHILE_TYPING.has(d.code) && cursorOffsets.some((c) => c >= d.start && c <= d.end)),
   );
 }

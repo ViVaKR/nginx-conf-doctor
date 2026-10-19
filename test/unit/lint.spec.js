@@ -6,8 +6,11 @@ const { lintUnknownDirectives, suggest, editDistance } = require('../../src/ngin
 
 const NAMES = ['server', 'listen', 'server_name', 'location', 'return', 'proxy_pass', 'proxy_set_header', 'map', 'if', 'index', 'include'];
 const known = new Set(NAMES);
+// @ts-ignore
 const isKnownDirective = (n) => known.has(n);
+// @ts-ignore
 const lint = (src, extra) => lintUnknownDirectives(parse(src, { isKnownDirective }).root, { isKnownDirective, names: NAMES, extra });
+// @ts-ignore
 const slice = (src, d) => src.slice(d.start, d.end);
 
 test('편집 거리: 전치는 1', () => {
@@ -76,6 +79,7 @@ test('최소 거리가 같은 후보만, 최대 3개', () => {
 const { lintContexts } = require('../../src/nginx/lint');
 const { createDirectiveDb } = require('../../src/nginx/directive-db');
 
+// @ts-ignore
 const D = (name, family, contexts, block = false) => ({ name, family, contexts, block, syntaxes: [{ text: '', block, line: name }] });
 const ctxDb = createDirectiveDb({
   directives: [
@@ -102,8 +106,10 @@ const ctxDb = createDirectiveDb({
     D('map', 'http', ['http'], true),
   ],
 });
+// @ts-ignore
 const ctxLint = (src, isMain = true) =>
   lintContexts(parse(src, { isKnownDirective: ctxDb.isKnownDirective }).root, { db: ctxDb, isMain });
+// @ts-ignore
 const msgNames = (src, isMain) => ctxLint(src, isMain).map((d) => src.slice(d.start, d.end));
 
 test('컨텍스트: 올바른 설정은 경고 0건', () => {

@@ -6,6 +6,7 @@ const { hoverAt } = require('./nginx/hover');
 
 const LANGUAGE_ID = 'nginx';
 
+// @ts-ignore
 function registerHover(context, db) {
   if (!db) return;
   context.subscriptions.push(

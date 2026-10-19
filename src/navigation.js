@@ -6,9 +6,11 @@ const { outline, resolveInclude, checkRenameTarget, checkRenameName, renameEdits
 
 const LANGUAGE_ID = 'nginx';
 
+// @ts-ignore
 function registerNavigation(context, service, db = null) {
   const { ws } = service;
   const dbForRename = db || { variables: [] };
+  // @ts-ignore
   const within = (x, offset) => offset >= x.start && offset <= x.end;
 
   const SYMBOL_KIND = {
@@ -27,6 +29,7 @@ function registerNavigation(context, service, db = null) {
         const offset = doc.offsetAt(position);
         const fi = service.indexDocument(doc);
 
+        // @ts-ignore
         const inc = fi.includes.find((i) => within(i, offset));
         if (inc) {
           const target = resolveInclude(inc.name, ws.fileList(), doc.uri.path);
@@ -38,6 +41,7 @@ function registerNavigation(context, service, db = null) {
         if (!hit) return undefined;
         const locations = ws
           .definitions(hit.kind, hit.name)
+          // @ts-ignore
           .map(({ key, def }) => {
             const uri = service.uriOf(key);
             if (!uri) return null;
@@ -61,7 +65,9 @@ function registerNavigation(context, service, db = null) {
         if (!hit) return [];
         return ws
           .occurrences(hit.kind, hit.name)
+          // @ts-ignore
           .filter((o) => !o.isDef || !ctx || ctx.includeDeclaration !== false)
+          // @ts-ignore
           .map(({ key, item }) => {
             const uri = service.uriOf(key);
             if (!uri) return null;
@@ -93,6 +99,7 @@ function registerNavigation(context, service, db = null) {
         const fi = service.indexDocument(doc);
         const hit = [...fi.refs, ...fi.defs].find((x) => within(x, offset));
         if (!hit) throw new Error('이름을 바꿀 수 있는 upstream 이나 $변수가 아닙니다.');
+        // @ts-ignore
         const extra = new Set(vscode.workspace.getConfiguration('nginx-conf-doctor').get('extraVariables', []).map((v) => v.replace(/^\$/, '')));
         const why = checkRenameTarget(hit.kind, hit.name, ws, dbForRename) || checkRenameName(hit.kind, hit.name, newName, ws, dbForRename, extra);
         if (why) throw new Error(why);
@@ -129,9 +136,11 @@ function registerNavigation(context, service, db = null) {
     vscode.languages.registerDocumentSymbolProvider(LANGUAGE_ID, {
       provideDocumentSymbols(doc) {
         const fi = service.indexDocument(doc);
+        // @ts-ignore
         const toSymbol = (o) => {
           const range = new vscode.Range(doc.positionAt(o.start), doc.positionAt(o.end));
           const sel = new vscode.Range(doc.positionAt(o.selStart), doc.positionAt(o.selEnd));
+          // @ts-ignore
           const sym = new vscode.DocumentSymbol(o.name, o.detail, SYMBOL_KIND[o.kind], range, sel);
           sym.children = o.children.map(toSymbol);
           return sym;

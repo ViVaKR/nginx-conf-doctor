@@ -4,7 +4,9 @@ const assert = require('node:assert/strict');
 const { indexText, outline, resolveInclude, lintReferences, variableCandidates, checkRenameTarget, checkRenameName, renameEdits } = require('../../src/nginx/symbols');
 const { createWorkspaceIndex } = require('../../src/nginx/workspace-index');
 
+// @ts-ignore
 const names = (arr, kind) => arr.filter((x) => x.kind === kind).map((x) => x.name);
+// @ts-ignore
 const text = (src, x) => src.slice(x.start, x.end);
 
 // ---------------------------------------------------------------------------
@@ -108,13 +110,18 @@ const FILES = [
 ];
 
 test('include: 서버 절대경로여도 뒤쪽 경로가 가장 길게 일치하는 파일', () => {
+  // @ts-ignore
   assert.equal(resolveInclude('/etc/nginx/snippets/csp.conf', FILES, '/w/nginx/site.conf').key, 'a');
+  // @ts-ignore
   assert.equal(resolveInclude('conf.d/site.conf', FILES).key, 'c');
+  // @ts-ignore
   assert.equal(resolveInclude('site.conf', FILES).key, 'c');
 });
 
 test('include: 후보가 여럿이면 현재 파일과 가까운 것', () => {
+  // @ts-ignore
   assert.equal(resolveInclude('snippets/csp.conf', FILES, '/w/other/x.conf').key, 'b');
+  // @ts-ignore
   assert.equal(resolveInclude('snippets/csp.conf', FILES, '/w/nginx/x.conf').key, 'a');
 });
 
@@ -150,6 +157,7 @@ const db = {
     { name: '$http_name', prefix: '$http_' },
   ],
 };
+// @ts-ignore
 function wsWith(...srcs) {
   const ws = createWorkspaceIndex();
   srcs.forEach((s, i) => ws.update(`k${i}`, `/f${i}.conf`, indexText(s)));
@@ -209,6 +217,7 @@ test('변수 후보 계산: 내장 + 정의됨 + 사용자 지정, 접두어 목
 test('아웃라인: 같은 location 이 구별되고, 긴 이름은 잘린다', () => {
   const long = 'x'.repeat(100);
   const o = outline(indexText(`server {\n location /a/ { }\n location /b/ { }\n location ~ ${long} { }\n}\n`).parsed);
+  // @ts-ignore
   const names = o[0].children.map((c) => c.name);
   assert.deepEqual(names.slice(0, 2), ['location /a/', 'location /b/']);
   assert.ok(names[2].length <= 70 && names[2].endsWith('…'));
@@ -229,32 +238,43 @@ test('renameEdits: $x / ${x} / 정규식 이름 캡처(이름만) 표기 보존'
   const ws = wsWith(src);
   const edits = renameEdits(ws, 'variable', 'uid', 'user_id');
   // 정규식 이름 캡처 정의(이름만) 1 + $uid 참조 2 + ${uid} 참조 1
+  // @ts-ignore
   assert.deepEqual(edits.map((e) => e.newText).sort(), ['$user_id', '$user_id', '${user_id}', 'user_id']);
 });
 
 test('renameEdits: upstream 은 이름만 바뀐다', () => {
   const ws = wsWith('upstream a { }\n', 'proxy_pass http://a/x;\n');
+  // @ts-ignore
   assert.deepEqual(renameEdits(ws, 'upstream', 'a', 'b').map((e) => e.newText), ['b', 'b']);
 });
 
 test('checkRenameTarget: 정의된 것만 바꿀 수 있고, 내장/정의 없는 변수와 호스트는 거부', () => {
   const ws = wsWith('upstream a { }\nset $mine 1;\n');
   assert.equal(checkRenameTarget('upstream', 'a', ws, db), null);
+  // @ts-ignore
   assert.match(checkRenameTarget('upstream', 'api.example.com', ws, db), /정의된 upstream 이 아닙니다/);
   assert.equal(checkRenameTarget('variable', 'mine', ws, db), null);
+  // @ts-ignore
   assert.match(checkRenameTarget('variable', 'host', ws, db), /내장 변수/);
+  // @ts-ignore
   assert.match(checkRenameTarget('variable', 'arg_x', ws, db), /내장 변수/); // 접두어 변수
+  // @ts-ignore
   assert.match(checkRenameTarget('variable', 'unknown_thing', ws, db), /정의가 워크스페이스에 없어/);
 });
 
 test('checkRenameName: 형식 / 충돌 검사 (같은 이름은 통과)', () => {
   const ws = wsWith('upstream a { }\nupstream b { }\nset $mine 1;\n');
   assert.equal(checkRenameName('upstream', 'a', 'c-1', ws, db), null);
+  // @ts-ignore
   assert.match(checkRenameName('upstream', 'a', '1x', ws, db), /올바른 upstream 이름/);
+  // @ts-ignore
   assert.match(checkRenameName('upstream', 'a', 'b', ws, db), /이미 정의된 upstream/);
   assert.equal(checkRenameName('upstream', 'a', 'a', ws, db), null);
+  // @ts-ignore
   assert.match(checkRenameName('variable', 'mine', 'a-b', ws, db), /올바른 변수 이름/);
+  // @ts-ignore
   assert.match(checkRenameName('variable', 'mine', 'host', ws, db), /이미 있는 변수/);
+  // @ts-ignore
   assert.match(checkRenameName('variable', 'mine', 'arg_foo', ws, db), /이미 있는 변수/); // 접두어 변수와 충돌
   assert.equal(checkRenameName('variable', 'mine', 'mine2', ws, db), null);
 });

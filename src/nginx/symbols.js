@@ -21,10 +21,11 @@ const IS_WORDISH = (t) => t && (t.type === T.WORD || t.type === T.STRING);
 function indexText(text, opts = {}) {
   const parsed = parse(text, opts);
   const pos = parsed.positionAt;
-  const item = (kind, name, start, end) => {
+  // form: 'bare'(이름만) | '$'($name) | 'brace'(${name}) — 이름 바꾸기에서 표기를 그대로 보존하려고 기록
+  const item = (kind, name, start, end, form = 'bare') => {
     const a = pos(start);
     const b = pos(end);
-    return { kind, name, start, end, line: a.line, character: a.character, endLine: b.line, endCharacter: b.character };
+    return { kind, name, form, start, end, line: a.line, character: a.character, endLine: b.line, endCharacter: b.character };
   };
   const defs = [];
   const refs = [];
@@ -32,7 +33,7 @@ function indexText(text, opts = {}) {
 
   const isVar = (t) => t && t.type === T.WORD && /^\$[A-Za-z_][A-Za-z0-9_]*$/.test(t.value);
   const defVar = (t) => {
-    if (isVar(t)) defs.push(item('variable', t.value.slice(1), t.start, t.end));
+    if (isVar(t)) defs.push(item('variable', t.value.slice(1), t.start, t.end, '$'));
   };
 
   const visit = (children) => {
@@ -41,7 +42,7 @@ function indexText(text, opts = {}) {
       const nt = d.nameToken;
 
       // 이름 자체가 $변수인 행 (geoip2 { $geoip2_data_country_code ... } 등)
-      if (isVar(nt)) defs.push(item('variable', nt.value.slice(1), nt.start, nt.end));
+      if (isVar(nt)) defs.push(item('variable', nt.value.slice(1), nt.start, nt.end, '$'));
 
       switch (d.name) {
         case 'upstream':
@@ -110,7 +111,7 @@ function indexText(text, opts = {}) {
     VAR_RE.lastIndex = 0;
     let m;
     while ((m = VAR_RE.exec(t.text))) {
-      refs.push(item('variable', m[1] || m[2], t.start + m.index, t.start + m.index + m[0].length));
+      refs.push(item('variable', m[1] || m[2], t.start + m.index, t.start + m.index + m[0].length, m[0].startsWith('${') ? 'brace' : '$'));
     }
   }
 
@@ -129,16 +130,19 @@ function outline(parsed) {
     children
       .filter((d) => d.block && d.nameToken)
       .map((d) => {
-        let detail = d.args.map((t) => t.value).join(' ').slice(0, 60);
+        // 심볼 선택창(Cmd+Shift+O)은 detail 을 보여주지 않아 location 이 모두 똑같이 보이므로, 인자를 이름에 넣는다.
+        let arg = d.args.map((t) => t.value).join(' ');
         if (d.name === 'server') {
           const sn = d.block.children.find((c) => c.name === 'server_name');
-          detail = sn ? sn.args.slice(0, 2).map((t) => t.value).join(' ') : '';
+          arg = sn ? sn.args.slice(0, 2).map((t) => t.value).join(' ') : '';
         }
+        const label = (arg ? `${d.name} ${arg}` : d.name);
+        const name = label.length > 70 ? `${label.slice(0, 69)}…` : label;
         const kids = d.block.raw ? [] : build(d.block.children);
         const end = Math.max(d.end, d.nameToken.end, ...kids.map((k) => k.end));
         return {
-          name: d.name,
-          detail,
+          name,
+          detail: '',
           kind: KIND[d.name] || (d.name === 'if' || d.name === 'limit_except' ? 'struct' : 'object'),
           start: d.nameToken.start,
           end,
@@ -246,4 +250,52 @@ function lintReferences(fileIndex, ws, db, { extraVars = new Set() } = {}) {
   return out;
 }
 
-module.exports = { indexText, outline, resolveInclude, lintReferences, variableCandidates };
+// ---------------------------------------------------------------------------
+// 이름 바꾸기 (upstream / $변수)
+// ---------------------------------------------------------------------------
+const IDENT = { upstream: /^[A-Za-z_][A-Za-z0-9_-]*$/, variable: /^[A-Za-z_][A-Za-z0-9_]*$/ };
+
+/** 바꿀 "대상"이 이름을 바꿀 수 있는 것인가? 문제가 있으면 사유 문자열, 괜찮으면 null. */
+function checkRenameTarget(kind, name, ws, db) {
+  if (kind === 'upstream') {
+    return ws.names('upstream').has(name) ? null : `'${name}' 은(는) 워크스페이스에 정의된 upstream 이 아닙니다 (호스트 이름일 수 있습니다).`;
+  }
+  const { exact, prefixes, defined } = variableCandidates(db, ws);
+  if (defined.has(name)) return null;
+  if (exact.has(name) || prefixes.some((p) => name.startsWith(p) && name.length > p.length)) {
+    return `'$${name}' 은(는) nginx 내장 변수라 이름을 바꿀 수 없습니다.`;
+  }
+  return `'$${name}' 의 정의가 워크스페이스에 없어 이름을 바꿀 수 없습니다 (모듈이 만드는 변수일 수 있습니다).`;
+}
+
+/** 새 이름이 올바르고 충돌하지 않는가? 문제가 있으면 사유 문자열, 괜찮으면 null. */
+function checkRenameName(kind, oldName, newName, ws, db, extraVars = new Set()) {
+  if (!IDENT[kind].test(newName)) {
+    return kind === 'upstream'
+      ? `'${newName}' 은(는) 올바른 upstream 이름이 아닙니다 (영문자/숫자/_/- 만, 숫자로 시작할 수 없음).`
+      : `'${newName}' 은(는) 올바른 변수 이름이 아닙니다 (영문자/숫자/_ 만, 숫자로 시작할 수 없음).`;
+  }
+  if (newName === oldName) return null;
+  if (kind === 'upstream') {
+    return ws.names('upstream').has(newName) ? `이미 정의된 upstream '${newName}' 입니다.` : null;
+  }
+  const { exact, prefixes, defined } = variableCandidates(db, ws, extraVars);
+  if (exact.has(newName) || defined.has(newName) || prefixes.some((p) => newName.startsWith(p) && newName.length > p.length)) {
+    return `'$${newName}' 은(는) 이미 있는 변수 이름입니다.`;
+  }
+  return null;
+}
+
+/** 모든 파일의 정의+참조를 새 이름으로 바꾸는 편집 목록 ($x / ${x} / 이름만 표기를 보존). */
+function renameEdits(ws, kind, oldName, newName) {
+  return ws.occurrences(kind, oldName).map(({ key, item }) => ({
+    key,
+    line: item.line,
+    character: item.character,
+    endLine: item.endLine,
+    endCharacter: item.endCharacter,
+    newText: item.form === 'brace' ? `\${${newName}}` : item.form === '$' ? `$${newName}` : newName,
+  }));
+}
+
+module.exports = { indexText, outline, resolveInclude, lintReferences, variableCandidates, checkRenameTarget, checkRenameName, renameEdits };

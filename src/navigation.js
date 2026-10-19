@@ -2,12 +2,13 @@
 'use strict';
 
 const vscode = require('vscode');
-const { outline, resolveInclude } = require('./nginx/symbols');
+const { outline, resolveInclude, checkRenameTarget, checkRenameName, renameEdits } = require('./nginx/symbols');
 
 const LANGUAGE_ID = 'nginx';
 
-function registerNavigation(context, service) {
+function registerNavigation(context, service, db = null) {
   const { ws } = service;
+  const dbForRename = db || { variables: [] };
   const within = (x, offset) => offset >= x.start && offset <= x.end;
 
   const SYMBOL_KIND = {
@@ -48,6 +49,61 @@ function registerNavigation(context, service) {
           })
           .filter(Boolean);
         return locations.length ? locations : undefined;
+      },
+    }),
+
+    // Shift+F12: upstream / $변수의 모든 사용 위치 (여러 파일에 걸쳐)
+    vscode.languages.registerReferenceProvider(LANGUAGE_ID, {
+      provideReferences(doc, position, ctx) {
+        const offset = doc.offsetAt(position);
+        const fi = service.indexDocument(doc);
+        const hit = [...fi.refs, ...fi.defs].find((x) => within(x, offset));
+        if (!hit) return [];
+        return ws
+          .occurrences(hit.kind, hit.name)
+          .filter((o) => !o.isDef || !ctx || ctx.includeDeclaration !== false)
+          .map(({ key, item }) => {
+            const uri = service.uriOf(key);
+            if (!uri) return null;
+            return new vscode.Location(
+              uri,
+              new vscode.Range(new vscode.Position(item.line, item.character), new vscode.Position(item.endLine, item.endCharacter)),
+            );
+          })
+          .filter(Boolean);
+      },
+    }),
+
+    // F2: upstream / $변수 이름 바꾸기 (정의와 모든 파일의 사용처를 한 번에)
+    vscode.languages.registerRenameProvider(LANGUAGE_ID, {
+      prepareRename(doc, position) {
+        const offset = doc.offsetAt(position);
+        const fi = service.indexDocument(doc);
+        const hit = [...fi.refs, ...fi.defs].find((x) => within(x, offset));
+        if (!hit) throw new Error('이름을 바꿀 수 있는 upstream 이나 $변수가 아닙니다.');
+        const why = checkRenameTarget(hit.kind, hit.name, ws, dbForRename);
+        if (why) throw new Error(why);
+        // $ 나 ${ } 는 빼고 이름 부분만 편집 대상으로 보여준다
+        const a = hit.form === '$' ? hit.start + 1 : hit.form === 'brace' ? hit.start + 2 : hit.start;
+        const b = hit.form === 'brace' ? hit.end - 1 : hit.end;
+        return { range: new vscode.Range(doc.positionAt(a), doc.positionAt(b)), placeholder: hit.name };
+      },
+      provideRenameEdits(doc, position, newName) {
+        const offset = doc.offsetAt(position);
+        const fi = service.indexDocument(doc);
+        const hit = [...fi.refs, ...fi.defs].find((x) => within(x, offset));
+        if (!hit) throw new Error('이름을 바꿀 수 있는 upstream 이나 $변수가 아닙니다.');
+        const extra = new Set(vscode.workspace.getConfiguration('nginx-conf-doctor').get('extraVariables', []).map((v) => v.replace(/^\$/, '')));
+        const why = checkRenameTarget(hit.kind, hit.name, ws, dbForRename) || checkRenameName(hit.kind, hit.name, newName, ws, dbForRename, extra);
+        if (why) throw new Error(why);
+
+        const edit = new vscode.WorkspaceEdit();
+        for (const e of renameEdits(ws, hit.kind, hit.name, newName)) {
+          const uri = service.uriOf(e.key);
+          if (!uri) continue;
+          edit.replace(uri, new vscode.Range(new vscode.Position(e.line, e.character), new vscode.Position(e.endLine, e.endCharacter)), e.newText);
+        }
+        return edit;
       },
     }),
 

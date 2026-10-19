@@ -22,6 +22,21 @@ function createWorkspaceIndex() {
       }
       return out;
     },
+    /** 정의+참조 전부 (같은 위치는 한 번만, 정의 표시 유지). 참조 찾기/이름 바꾸기용. */
+    occurrences(kind, name) {
+      const out = [];
+      for (const [key, { index }] of files) {
+        const seen = new Set();
+        for (const [list, isDef] of [[index.defs, true], [index.refs, false]]) {
+          for (const it of list) {
+            if (it.kind !== kind || it.name !== name || seen.has(it.start)) continue;
+            seen.add(it.start);
+            out.push({ key, item: it, isDef });
+          }
+        }
+      }
+      return out;
+    },
     names(kind) {
       const s = new Set();
       for (const { index } of files.values()) for (const d of index.defs) if (d.kind === kind) s.add(d.name);

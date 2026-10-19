@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-0.0.2-38bdf8?labelColor=0b1220">
+  <img alt="version" src="https://img.shields.io/badge/version-1.0.1-38bdf8?labelColor=0b1220">
   <img alt="vscode" src="https://img.shields.io/badge/VS%20Code-%E2%89%A5%201.90-38bdf8?labelColor=0b1220&logo=visualstudiocode&logoColor=white">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-f43f9a?labelColor=0b1220">
   <img alt="last commit" src="https://img.shields.io/github/last-commit/ViVaKR/nginx-conf-doctor?color=38bdf8&labelColor=0b1220">
@@ -173,6 +173,16 @@ npx vsce package
 ```
 
 ## 📝 릴리스 노트
+
+## [1.0.1] - 2026-10-19
+### Added (새로운 기능)
+- 문서 포맷터 및 Enter 자동 들여쓰기 기능 추가 (탭/공백 혼재 정리, 여러 줄 문자열·Lua 본문 보호)
+- include 경로 Ctrl+클릭 이동 기능
+- upstream 및 `$변수` 정의로 이동, 참조 찾기, 이름 바꾸기(F2), 아웃라인(Outline) 지원
+- upstream 및 변수 이름 오타 경고와 빠른 수정(Quick Fix) 제공
+- "이 위치에서는 쓸 수 없는 지시어" 컨텍스트 오류 경고 기능
+- 컨텍스트 인식 자동완성 및 Hover 문서 지원
+- Nginx 공식 문서(nginx.org) 기준 1,011개 지시어 데이터 갱신
 
 ### 0.0.7
 

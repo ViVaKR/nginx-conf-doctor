@@ -21,7 +21,7 @@ function activate(context) {
   const service = createWorkspaceService(context, { isKnownDirective: db ? db.isKnownDirective : undefined });
   registerDiagnostics(context, db, service);
   registerQuickFix(context, db, service);
-  registerNavigation(context, service);
+  registerNavigation(context, service, db);
   registerCompletion(context, db);
   registerHover(context, db);
   registerFormatter(context, db);

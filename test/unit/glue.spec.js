@@ -16,6 +16,8 @@ function makeFake() {
   const definitionProviders = [];
   const linkProviders = [];
   const symbolProviders = [];
+  const referenceProviders = [];
+  const renameProviders = [];
   const files = {}; // 가짜 파일시스템: path -> text
   const Uri = (p) => ({ path: p, fsPath: p, toString: () => 'file://' + p });
   const collection = { last: null, set(uri, d) { this.last = d; }, delete() {}, dispose() {} };
@@ -60,6 +62,8 @@ function makeFake() {
       registerDocumentRangeFormattingEditProvider: (sel, p) => { rangeFormatProviders.push(p); return { dispose() {} }; },
       registerDefinitionProvider: (sel, p) => { definitionProviders.push(p); return { dispose() {} }; },
       registerDocumentLinkProvider: (sel, p) => { linkProviders.push(p); return { dispose() {} }; },
+      registerReferenceProvider: (sel, p) => { referenceProviders.push(p); return { dispose() {} }; },
+      registerRenameProvider: (sel, p) => { renameProviders.push(p); return { dispose() {} }; },
       registerDocumentSymbolProvider: (sel, p) => { symbolProviders.push(p); return { dispose() {} }; },
       registerHoverProvider: (sel, p) => { hoverProviders.push(p); return { dispose() {} }; },
       registerCompletionItemProvider: (sel, p) => { completionProviders.push(p); return { dispose() {} }; },
@@ -84,7 +88,7 @@ function makeFake() {
     window: { visibleTextEditors: [], onDidChangeTextEditorSelection: sub('selection') },
   };
   return { vscode, doc, collection, cfg, handlers, providers, completionProviders, hoverProviders, formatProviders, rangeFormatProviders,
-    definitionProviders, linkProviders, symbolProviders, files, Uri };
+    definitionProviders, linkProviders, symbolProviders, referenceProviders, renameProviders, files, Uri };
 }
 
 function load(fake) {
@@ -404,9 +408,9 @@ test('include 링크 / 아웃라인', async () => {
 
   const symbols = fake.symbolProviders[0].provideDocumentSymbols(fake.doc);
   assert.equal(symbols.length, 1);
-  assert.equal(symbols[0].name, 'server');
+  assert.equal(symbols[0].name, 'server'); // server_name 이 없으면 이름만
   assert.equal(symbols[0].kind, 2); // Namespace
-  assert.equal(symbols[0].children[0].name, 'location');
+  assert.equal(symbols[0].children[0].name, 'location /');
   assert.equal(symbols[0].children[0].kind, 11); // Function
 });
 
@@ -456,4 +460,76 @@ test('진단: 다른 파일의 upstream 정의가 바뀌면 열려 있는 문서
   await fake.handlers.fsChange(fake.Uri('/w/nginx/upstreams.conf'));
   await new Promise((r) => setTimeout(r, 400)); // schedule 의 debounce(250ms) 대기
   assert.equal(fake.collection.last.some((d) => d.code === 'unknown-upstream'), true);
+});
+
+// ---------------------------------------------------------------------------
+// 참조 찾기 / 이름 바꾸기
+// ---------------------------------------------------------------------------
+const SITE_RENAME = 'server {\n  server_name a.com;\n  location /a/ { proxy_pass http://buddham_api/; proxy_set_header Upgrade $connection_upgrade; }\n  location /b/ { proxy_pass http://buddham_api/b; add_header X "${connection_upgrade}"; }\n  location /c/ { proxy_set_header Host $host; }\n}\n';
+
+async function setupRename() {
+  const r = await setupWorkspace(SITE_RENAME);
+  r.mods.navigation.registerNavigation({ subscriptions: [] }, r.service, navDb);
+  return r;
+}
+const editsOf = (we) => we.edits.map((e) => ({ path: e.uri.path, line: e.range.start.line, text: e.text }));
+
+test('참조 찾기: 여러 파일에 걸친 upstream 사용처 (선언 포함/제외)', async () => {
+  const { fake } = await setupRename();
+  const prov = fake.referenceProviders[0];
+  const pos = at(fake, 'buddham_api');
+
+  const withDecl = prov.provideReferences(fake.doc, pos, { includeDeclaration: true });
+  assert.deepEqual(withDecl.map((l) => l.uri.path).sort(), ['/w/nginx/site.conf', '/w/nginx/site.conf', '/w/nginx/upstreams.conf']);
+
+  const noDecl = prov.provideReferences(fake.doc, pos, { includeDeclaration: false });
+  assert.equal(noDecl.length, 2);
+  assert.ok(noDecl.every((l) => l.uri.path === '/w/nginx/site.conf'));
+
+  assert.deepEqual(prov.provideReferences(fake.doc, at(fake, 'server_name', 1), { includeDeclaration: true }), []);
+});
+
+test('이름 바꾸기: upstream — 정의 + 모든 파일의 proxy_pass 를 한 번에', async () => {
+  const { fake } = await setupRename();
+  const prov = fake.renameProviders[0];
+  const pos = at(fake, 'buddham_api');
+
+  const prep = prov.prepareRename(fake.doc, pos);
+  assert.equal(fake.doc.getText(prep.range), 'buddham_api');
+  assert.equal(prep.placeholder, 'buddham_api');
+
+  const edits = editsOf(prov.provideRenameEdits(fake.doc, pos, 'buddham_main'));
+  assert.equal(edits.length, 3);
+  assert.deepEqual(edits.map((e) => e.path).sort(), ['/w/nginx/site.conf', '/w/nginx/site.conf', '/w/nginx/upstreams.conf']);
+  assert.ok(edits.every((e) => e.text === 'buddham_main'));
+});
+
+test('이름 바꾸기: $변수 — $x / ${x} 표기를 각각 보존, prepare 범위는 이름 부분만', async () => {
+  const { fake } = await setupRename();
+  const prov = fake.renameProviders[0];
+  const pos = at(fake, '$connection_upgrade', 4);
+
+  const prep = prov.prepareRename(fake.doc, pos);
+  assert.equal(fake.doc.getText(prep.range), 'connection_upgrade'); // $ 제외
+
+  const edits = editsOf(prov.provideRenameEdits(fake.doc, pos, 'conn_up'));
+  const texts = edits.map((e) => e.text).sort();
+  assert.deepEqual(texts, ['$conn_up', '$conn_up', '${conn_up}']); // map 의 정의($), 일반 참조($), 문자열 속 참조(${ })
+  assert.deepEqual(edits.map((e) => e.path).sort(), ['/w/nginx/site.conf', '/w/nginx/site.conf', '/w/nginx/upstreams.conf']);
+});
+
+test('이름 바꾸기: 내장 변수 / 정의 없는 이름 / 잘못된 새 이름 / 충돌은 거부', async () => {
+  const { fake } = await setupRename();
+  const prov = fake.renameProviders[0];
+
+  assert.throws(() => prov.prepareRename(fake.doc, at(fake, '$host', 3)), /내장 변수/);
+  assert.throws(() => prov.prepareRename(fake.doc, at(fake, 'server_name', 1)), /바꿀 수 있는/);
+
+  const pos = at(fake, 'buddham_api');
+  assert.throws(() => prov.provideRenameEdits(fake.doc, pos, '9bad'), /올바른 upstream 이름/);
+  assert.throws(() => prov.provideRenameEdits(fake.doc, pos, 'a b'), /올바른 upstream 이름/);
+
+  const vpos = at(fake, '$connection_upgrade', 4);
+  assert.throws(() => prov.provideRenameEdits(fake.doc, vpos, 'host'), /이미 있는 변수/); // 내장 변수와 충돌
+  assert.throws(() => prov.provideRenameEdits(fake.doc, vpos, 'a-b'), /올바른 변수 이름/); // 변수는 - 불가
 });

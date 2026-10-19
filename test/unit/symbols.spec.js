@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { indexText, outline, resolveInclude, lintReferences, variableCandidates } = require('../../src/nginx/symbols');
+const { indexText, outline, resolveInclude, lintReferences, variableCandidates, checkRenameTarget, checkRenameName, renameEdits } = require('../../src/nginx/symbols');
 const { createWorkspaceIndex } = require('../../src/nginx/workspace-index');
 
 const names = (arr, kind) => arr.filter((x) => x.kind === kind).map((x) => x.name);
@@ -78,16 +78,16 @@ test('include 경로: 단어/따옴표(따옴표 제외 범위), 변수 포함�
 // ---------------------------------------------------------------------------
 // 아웃라인
 // ---------------------------------------------------------------------------
-test('아웃라인: server 는 server_name 을 detail 로, location/upstream 계층', () => {
+test('아웃라인: 인자가 이름에 들어간다 (심볼 선택창에서 location 이 구별되도록), server 는 server_name', () => {
   const src = 'upstream u { server 1.1.1.1; }\nserver {\n  server_name a.com b.com c.com;\n  location ~* \\.php$ {\n    if ($a) { return 1; }\n  }\n}\n';
   const o = outline(indexText(src).parsed);
-  assert.deepEqual(o.map((x) => [x.name, x.detail, x.kind]), [
-    ['upstream', 'u', 'class'],
-    ['server', 'a.com b.com', 'namespace'],
+  assert.deepEqual(o.map((x) => [x.name, x.kind]), [
+    ['upstream u', 'class'],
+    ['server a.com b.com', 'namespace'],
   ]);
   const loc = o[1].children[0];
-  assert.deepEqual([loc.name, loc.detail, loc.kind], ['location', '~* \\.php$', 'function']);
-  assert.equal(loc.children[0].name, 'if');
+  assert.deepEqual([loc.name, loc.kind], ['location ~* \\.php$', 'function']);
+  assert.equal(loc.children[0].name, 'if ($a)');
 });
 
 test('아웃라인: 닫히지 않은 블록도 자식이 부모 범위 안에 있다', () => {
@@ -204,4 +204,57 @@ test('변수 후보 계산: 내장 + 정의됨 + 사용자 지정, 접두어 목
   const c = variableCandidates(db, wsWith('set $mine 1;'), new Set(['extra']));
   assert.deepEqual([...c.candidates].sort(), ['arg_name', 'extra', 'host', 'http_name', 'mine', 'request_uri']);
   assert.deepEqual(c.prefixes, ['arg_', 'http_']);
+});
+
+test('아웃라인: 같은 location 이 구별되고, 긴 이름은 잘린다', () => {
+  const long = 'x'.repeat(100);
+  const o = outline(indexText(`server {\n location /a/ { }\n location /b/ { }\n location ~ ${long} { }\n}\n`).parsed);
+  const names = o[0].children.map((c) => c.name);
+  assert.deepEqual(names.slice(0, 2), ['location /a/', 'location /b/']);
+  assert.ok(names[2].length <= 70 && names[2].endsWith('…'));
+});
+
+// ---------------------------------------------------------------------------
+// 이름 바꾸기 (순수 로직)
+// ---------------------------------------------------------------------------
+test('occurrences: 정의+참조를 중복 없이, 정의 표시 유지', () => {
+  const ws = wsWith('set $x 1;\nadd_header A $x;\n');
+  const occ = ws.occurrences('variable', 'x');
+  assert.equal(occ.length, 2); // set 의 $x 는 정의이면서 참조 토큰이지만 한 번만
+  assert.equal(occ.filter((o) => o.isDef).length, 1);
+});
+
+test('renameEdits: $x / ${x} / 정규식 이름 캡처(이름만) 표기 보존', () => {
+  const src = 'location ~ ^/(?<uid>\\d+) {\n  set $y $uid;\n  add_header A "${uid}-$uid";\n}\n';
+  const ws = wsWith(src);
+  const edits = renameEdits(ws, 'variable', 'uid', 'user_id');
+  // 정규식 이름 캡처 정의(이름만) 1 + $uid 참조 2 + ${uid} 참조 1
+  assert.deepEqual(edits.map((e) => e.newText).sort(), ['$user_id', '$user_id', '${user_id}', 'user_id']);
+});
+
+test('renameEdits: upstream 은 이름만 바뀐다', () => {
+  const ws = wsWith('upstream a { }\n', 'proxy_pass http://a/x;\n');
+  assert.deepEqual(renameEdits(ws, 'upstream', 'a', 'b').map((e) => e.newText), ['b', 'b']);
+});
+
+test('checkRenameTarget: 정의된 것만 바꿀 수 있고, 내장/정의 없는 변수와 호스트는 거부', () => {
+  const ws = wsWith('upstream a { }\nset $mine 1;\n');
+  assert.equal(checkRenameTarget('upstream', 'a', ws, db), null);
+  assert.match(checkRenameTarget('upstream', 'api.example.com', ws, db), /정의된 upstream 이 아닙니다/);
+  assert.equal(checkRenameTarget('variable', 'mine', ws, db), null);
+  assert.match(checkRenameTarget('variable', 'host', ws, db), /내장 변수/);
+  assert.match(checkRenameTarget('variable', 'arg_x', ws, db), /내장 변수/); // 접두어 변수
+  assert.match(checkRenameTarget('variable', 'unknown_thing', ws, db), /정의가 워크스페이스에 없어/);
+});
+
+test('checkRenameName: 형식 / 충돌 검사 (같은 이름은 통과)', () => {
+  const ws = wsWith('upstream a { }\nupstream b { }\nset $mine 1;\n');
+  assert.equal(checkRenameName('upstream', 'a', 'c-1', ws, db), null);
+  assert.match(checkRenameName('upstream', 'a', '1x', ws, db), /올바른 upstream 이름/);
+  assert.match(checkRenameName('upstream', 'a', 'b', ws, db), /이미 정의된 upstream/);
+  assert.equal(checkRenameName('upstream', 'a', 'a', ws, db), null);
+  assert.match(checkRenameName('variable', 'mine', 'a-b', ws, db), /올바른 변수 이름/);
+  assert.match(checkRenameName('variable', 'mine', 'host', ws, db), /이미 있는 변수/);
+  assert.match(checkRenameName('variable', 'mine', 'arg_foo', ws, db), /이미 있는 변수/); // 접두어 변수와 충돌
+  assert.equal(checkRenameName('variable', 'mine', 'mine2', ws, db), null);
 });

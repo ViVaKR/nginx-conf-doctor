@@ -17,3 +17,8 @@ eslint.config.mjs
 README.Test.md
 
 docs/**
+backup/**
+
+release*.sh
+ref.md
+README.backup.md

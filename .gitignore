@@ -1,9 +1,14 @@
 node_modules
+
 .vscode-test/
 *.vsix
 .env
 /nginx/
 /*.conf
 ref.md
+
 README.backup.md
 README.Test.md
+
+/backup/
+release*.sh

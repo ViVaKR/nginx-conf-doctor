@@ -10,7 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="README.md"><b>한국어</b></a> | <a href="README.en.md"><b>English</b></a>
+  <a href="https://github.com/ViVaKR/nginx-conf-doctor/blob/main/README.md"><b>한국어</b></a>
+  &nbsp;|&nbsp;
+  <a href="https://github.com/ViVaKR/nginx-conf-doctor/blob/main/README.en.md"><b>English</b></a>
 </p>
 
 <p align="center">
@@ -20,7 +22,8 @@
 </p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-1.0.1-38bdf8?labelColor=0b1220">
+  <img alt="version" src="https://img.shields.io/visual-studio-marketplace/v/buddham-hq.nginx-conf-doctor?color=38bdf8&labelColor=0b1220&label=version">
+  <img alt="installs" src="https://img.shields.io/visual-studio-marketplace/i/buddham-hq.nginx-conf-doctor?color=a78bfa&labelColor=0b1220&label=installs">
   <img alt="vscode" src="https://img.shields.io/badge/VS%20Code-%E2%89%A5%201.90-38bdf8?labelColor=0b1220&logo=visualstudiocode&logoColor=white">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-f43f9a?labelColor=0b1220">
   <img alt="last commit" src="https://img.shields.io/github/last-commit/ViVaKR/nginx-conf-doctor?color=38bdf8&labelColor=0b1220">
@@ -28,16 +31,16 @@
 </p>
 
 <p align="center">
-  <a href="#-주요-기능">기능</a> ·
-  <a href="#-지원-파일">지원 파일</a> ·
-  <a href="#%EF%B8%8F-설정">설정</a> ·
-  <a href="#%EF%B8%8F-알려진-제한">알려진 제한</a> ·
-  <a href="#-릴리스-노트">릴리스 노트</a>
+  <a href="#주요-기능">기능</a> ·
+  <a href="#지원-파일">지원 파일</a> ·
+  <a href="#설정">설정</a> ·
+  <a href="#알려진-제한">알려진 제한</a> ·
+  <a href="#릴리스-노트">릴리스 노트</a>
 </p>
 
 ---
 
-## 🚀 설치
+## 설치
 
 VS Code 에서 `Ctrl+P` (macOS `Cmd+P`) 를 누르고 아래를 붙여 넣으세요.
 
@@ -45,7 +48,7 @@ VS Code 에서 `Ctrl+P` (macOS `Cmd+P`) 를 누르고 아래를 붙여 넣으세
 ext install buddham-hq.nginx-conf-doctor
 ```
 
-## 👀 이렇게 알려 줍니다
+## 이렇게 알려 줍니다
 
 ```nginx
 server {
@@ -61,7 +64,7 @@ nginx 설정 파일(`nginx.conf`, `conf.d/*.conf` 등)을 편집할 때 **구문
 
 단순히 색만 입히는 것이 아니라, 지시어가 **어느 컨텍스트(`http`, `server`, `location` 등)에 쓰였는지**를 읽어서 "이 위치에서는 쓸 수 없는 지시어"까지 알려 줍니다.
 
-## ✨ 주요 기능
+## 주요 기능
 
 ### 구문 강조
 - nginx 전용 TextMate 문법으로 지시어, 변수, 문자열, 주석을 구분해 표시합니다.
@@ -75,6 +78,7 @@ nginx 설정 파일(`nginx.conf`, `conf.d/*.conf` 등)을 편집할 때 **구문
 | 구조 오류 | 닫히지 않은 중괄호, 빠진 세미콜론, 닫히지 않은 따옴표 |
 | 컨텍스트 오류 | 현재 위치에서 쓸 수 없는 지시어 (예: `server` 안에 `worker_processes`) |
 | 알 수 없는 지시어 | 데이터베이스에 없는 지시어 (오타 발견에 유용) |
+| 참조 오류 | 정의되지 않은 `upstream` 또는 `$변수` 이름 (오타 발견에 유용) |
 
 > 지시어 데이터를 읽지 못하는 경우에도 **구조 진단(중괄호/세미콜론/따옴표)은 계속 동작**합니다.
 
@@ -82,22 +86,20 @@ nginx 설정 파일(`nginx.conf`, `conf.d/*.conf` 등)을 편집할 때 **구문
 진단된 문제 위에서 `Ctrl+.` (macOS `Cmd+.`)로 제안되는 수정을 적용할 수 있습니다.
 
 ### 자동완성
-현재 컨텍스트에서 사용할 수 있는 지시어를 제안합니다.
+현재 컨텍스트에서 사용할 수 있는 지시어만 제안합니다.
 
 ### Hover 문서
 지시어에 마우스를 올리면 설명을 볼 수 있습니다.
 
-### 요약
-- 구문 강조(지시어 1,011개 데이터에서 자동 생성)
-- 세미콜론, 중괄호, 따옴표 진단과 오타 경고(빠른 수정 포함)
-- 컨텍스트 오류 경고와 컨텍스트 인식 자동완성
-- hover 문서, 문서 포맷터와 Enter 자동 들여쓰기
-- include 경로 클릭, 정의로 이동, 참조 찾기, 이름 바꾸기, 아웃라인
-- upstream과 변수 이름 오타 경고
+### 탐색과 포맷
+- **정의로 이동 / 참조 찾기**: `upstream` 블록과 `$변수` 선언 사이를 바로 이동합니다.
+- **이름 바꾸기 (F2)**: `upstream` 이름과 변수를 한 번에 바꿉니다.
+- **아웃라인**: `server` > `location` 구조를 심볼 아웃라인으로 탐색합니다.
+- **문서 포맷터**: 탭/공백 혼재를 정리하고, 여러 줄 문자열과 Lua 본문은 보호합니다.
 
 ---
 
-## 📂 지원 파일
+## 지원 파일
 
 아래 파일은 자동으로 `nginx` 언어로 인식됩니다.
 
@@ -121,15 +123,15 @@ nginx 설정 파일(`nginx.conf`, `conf.d/*.conf` 등)을 편집할 때 **구문
 
 ---
 
-## ⚙️ 설정
+## 설정
 
 | 설정 | 기본값 | 설명 |
 |------|--------|------|
 | `nginx-conf-doctor.extraDirectives` | `[]` | 서드파티 모듈 등 이 확장이 모르는 지시어 이름. 여기에 적으면 "알 수 없는 지시어" 경고가 사라집니다. |
+| `nginx-conf-doctor.extraVariables` | `[]` | 서드파티 모듈 등 워크스페이스 밖에서 정의되는 변수 이름. 여기에 적으면 오타 경고 후보에서 "정의된 변수"로 취급됩니다. |
 | `nginx-conf-doctor.contextSeverity` | `warning` | "이 위치에서는 쓸 수 없는 지시어" 경고의 표시 수준 (`error` / `warning` / `information` / `off`) |
 | `nginx-conf-doctor.unknownDirectiveSeverity` | `warning` | 알 수 없는 지시어의 표시 수준 (`error` / `warning` / `information` / `off`) |
-
----
+| `nginx-conf-doctor.referenceSeverity` | `warning` | upstream/변수 이름 오타 경고의 표시 수준 (`error` / `warning` / `information` / `off`) |
 
 ### 권장 VS Code 설정 (settings.json)
 
@@ -156,18 +158,18 @@ nginx 설정 파일(`nginx.conf`, `conf.d/*.conf` 등)을 편집할 때 **구문
 }
 ```
 
-## 📋 요구 사항
+## 요구 사항
 
 - VS Code `1.90.0` 이상
 - 기능이 중복되는 확장 삭제(Nginx 관련 확장)
 
-## ⚠️ 알려진 제한
+## 알려진 제한
 
 - nginx를 실제로 실행해서 검사하는 도구가 아닙니다. 최종 검증은 서버에서 `nginx -t`로 하세요.
 - `include`로 불러오는 다른 파일의 내용은 분석하지 않습니다.
 - 서드파티 모듈 지시어는 `extraDirectives`에 등록해야 경고가 사라집니다.
 
-## 🛠️ 개발
+## 개발
 
 ```bash
 npm install
@@ -184,7 +186,11 @@ npm run test:unit        # 단위 테스트
 npx vsce package
 ```
 
-## 📝 릴리스 노트
+## 릴리스 노트
+
+### [1.0.4] - 2026-10-20
+- **소개 페이지 정비**: 한국어/English 링크를 절대 주소로 변경, 버전 배지를 마켓플레이스 최신 버전에 자동 연동, 목차 앵커 수정
+- **설정 문서 보강**: `extraVariables`, `referenceSeverity` 설정 안내 추가
 
 ### [1.0.1] - 2026-10-19 (정식 버전 배포) 🎉
 - **문서 포맷터 & 들여쓰기**: Nginx 전용 포맷터 탑재 및 Enter 자동 들여쓰기 지원 (탭/공백 혼재 정리, 여러 줄 문자열·Lua 본문 보호)
@@ -193,7 +199,7 @@ npx vsce package
 - **지시어 무장**: Nginx 공식 문서(nginx.org) 기준 1,011개 최신 지시어 데이터 세트 업데이트 및 Hover 설명 문서 지원
 
 <details>
-<summary><b>📦 이전 베이타 / 개발 버전 이력 보기 (0.0.1 ~ 0.0.7)</b></summary>
+<summary><b>이전 베타 / 개발 버전 이력 보기 (0.0.1 ~ 0.0.7)</b></summary>
 
 #### [0.0.7]
 - 인덱스 생성 참조찾기(Shift+F12), 이름바꾸기(F2)
@@ -217,7 +223,9 @@ npx vsce package
 - 배포 키워드 목록 보강
 
 #### [0.0.2]
-- 아이콘 및 마켓플레이스 소개 페이지 정비
+- 독자 아이콘 제작 (중괄호와 심전도 선), 표시 이름 확정, 한/영 병기 설명
+- 마켓플레이스 소개 페이지 개편 (버튼, 배지, 목차, 진단 예시)
+- 배포 규격 정비 (갤러리 배너, 신뢰하지 않는 작업 공간/가상 작업 공간 지원, 키워드)
 
 #### [0.0.1]
 - 최초 릴리스
@@ -225,6 +233,6 @@ npx vsce package
 
 </details>
 
-## 📄 라이선스
+## 라이선스
 
 [MIT](LICENSE)
